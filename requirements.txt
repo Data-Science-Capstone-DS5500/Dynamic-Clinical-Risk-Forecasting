@@ -1,7 +1,12 @@
 pandas>=2.0
-numpy
+numpy<2
 scikit-learn
 xgboost
 matplotlib
 seaborn
 jupyter
+google-cloud-bigquery
+google-cloud-bigquery-storage
+db-dtypes
+torch
+tqdm
