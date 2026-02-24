@@ -2,14 +2,14 @@
 
 An end-to-end machine learning pipeline for dynamic clinical risk forecasting using the MIMIC-IV dataset. This project automates the extraction of massive clinical datasets from Google BigQuery, processes them through a modular clinical pipeline, and trains predictive models for multiple vital sign trajectories.
 
-## 🚀 Project Overview
+## Project Overview
 
 This project provides a robust, production-ready framework for:
 - **Scalable Data Extraction**: Efficiently querying and aggregating 50M+ rows of clinical events from BigQuery.
 - **Modular Preprocessing**: A decoupled suite of scripts for ingestion, temporal alignment, clinical validation (outlier clipping), and rolling feature engineering.
 - **Predictive Modeling**: High-performance XGBoost baselines for 6-hour ahead forecasting of 8 critical vital signs.
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 ├── data/
@@ -24,7 +24,7 @@ This project provides a robust, production-ready framework for:
 └── README.md               # Project documentation
 ```
 
-## 🛠️ Setup & Installation
+## Setup & Installation
 
 ### 1. Prerequisites
 - Python 3.10+
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 brew install libomp
 ```
 
-## 📈 Running the Pipeline
+## Running the Pipeline
 
 The pipeline is designed to be run in sequence:
 
@@ -76,7 +76,7 @@ Trains the baseline XGBoost models and saves performance metrics.
 python src/models/baseline_xgboost.py
 ```
 
-## 📊 Current Progress & Metrics
+## Current Progress & Metrics
 
 The baseline models show strong predictive performance across critical vital signs (6-hour horizon):
 
