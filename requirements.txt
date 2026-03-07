@@ -10,3 +10,5 @@ google-cloud-bigquery-storage
 db-dtypes
 torch
 tqdm
+streamlit>=1.32
+plotly>=5.20
