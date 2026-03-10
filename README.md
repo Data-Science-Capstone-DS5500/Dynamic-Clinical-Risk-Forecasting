@@ -7,7 +7,8 @@ An end-to-end machine learning pipeline for dynamic clinical risk forecasting us
 This project provides a robust, production-ready framework for:
 - **Scalable Data Extraction**: Efficiently querying and aggregating 50M+ rows of clinical events from BigQuery.
 - **Modular Preprocessing**: A decoupled suite of scripts for ingestion, temporal alignment, clinical validation (outlier clipping), and rolling feature engineering.
-- **Predictive Modeling**: High-performance XGBoost baselines for 6-hour ahead forecasting of 8 critical vital signs.
+- **Predictive Modeling**: High-performance XGBoost baselines and sequential Bi-LSTM models for 6-hour ahead forecasting of 8 critical vital signs.
+- **Interactive Dashboard**: A real-time clinical risk monitoring interface built with Streamlit and Plotly.
 
 ## Project Structure
 
@@ -19,10 +20,31 @@ This project provides a robust, production-ready framework for:
 │   ├── config.py           # Centralized project configuration and paths
 │   ├── data_extraction/    # Scripts for BigQuery data retrieval
 │   ├── preprocessing/      # Modular preprocessing pipeline components
-│   └── models/             # Training and evaluation logic
+│   ├── models/             # Training and evaluation logic (XGBoost & LSTM)
+│   ├── inference/          # Unified inference interface (Predictor)
+│   └── dashboard/          # Streamlit application and visualizations
 ├── requirements.txt        # Core project dependencies
 └── README.md               # Project documentation
 ```
+
+## Dashboard
+
+The project includes a comprehensive interactive dashboard for real-time patient monitoring and risk assessment. 
+
+### 1. Patient Overview
+Provides a high-level summary of the patient's current state, temporal trends, and a snapshot grid.
+<img width="3024" height="1416" alt="image" src="https://github.com/user-attachments/assets/ac5bda58-27b6-459f-a692-d61ef6285c62" />
+
+
+### 2. 6-Hour Forecast
+Displays predicted vital signs 6 hours into the future, complete with confidence bands and a clinical risk gauge.
+<img width="3012" height="1506" alt="image" src="https://github.com/user-attachments/assets/c1c141f1-c1a8-4d81-9f3a-4bb12173aea2" />
+
+
+### 3. Risk History & Interpretation
+Shows the evolution of the clinical risk score and provides feature importance for interpretability.
+<img width="3024" height="1508" alt="image" src="https://github.com/user-attachments/assets/8936b13c-34fe-4925-91c6-12e889ba6b4c" />
+
 
 ## Setup & Installation
 
@@ -40,9 +62,6 @@ To use the automated data extraction from BigQuery:
     gcloud auth application-default login
     ```
 3.  **Project Configuration**: Open `src/config.py` and set your `GOOGLE_CLOUD_PROJECT` ID.
-    ```python
-    GOOGLE_CLOUD_PROJECT = "your-project-id"
-    ```
 4.  **Dataset Access**: Ensure your authenticated GCP account has `BigQuery Data Viewer` permissions on the `physionet-data.mimiciv_3_1_icu` and `physionet-data.mimiciv_3_1_hosp` datasets.
 
 ### 3. Local Environment
@@ -59,32 +78,25 @@ brew install libomp
 The pipeline is designed to be run in sequence:
 
 ### Step 1: Data Extraction
-Extracts cohort, vital signs, and interventions from BigQuery.
 ```bash
 python src/data_extraction/extraction.py
 ```
 
 ### Step 2: Modular Preprocessing
-Transforms raw extracts into a feature matrix for modeling.
 ```bash
 python src/preprocessing/pipeline.py
 ```
 
 ### Step 3: Model Training
-Trains the baseline XGBoost models and saves performance metrics.
 ```bash
 python src/models/baseline_xgboost.py
+python src/models/lstm_model.py
 ```
 
-## Current Progress & Metrics
-
-The baseline models show strong predictive performance across critical vital signs (6-hour horizon):
-
-| Target Vital | MAE | R² (Test) |
-| :--- | :--- | :--- |
-| **Temperature** | 0.85 °F | **0.78** |
-| **FiO2** | 2.75 % | **0.71** |
-| **Heart Rate** | 8.09 bpm | **0.61** |
-| **Systolic BP** | 11.81 mmHg | **0.49** |
+### Step 4: Launch Dashboard
+Start the interactive Streamlit application using the project virtual environment:
+```bash
+./.venv/bin/python3 -m streamlit run src/dashboard/app.py
+```
 
 *All artifacts and logs are saved to `data/processed/`.*
