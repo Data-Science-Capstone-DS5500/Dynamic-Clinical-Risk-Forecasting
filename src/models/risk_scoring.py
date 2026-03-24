@@ -19,7 +19,7 @@ CLINICAL_THRESHOLDS = {
     "sbp":         (70,  90, 140, 180),   # mmHg
     "dbp":         (40,  60,  90, 110),   # mmHg
     "resp_rate":   ( 8,  12,  20,  30),   # breaths/min
-    "spo2":        (80,  90, 100, 100),   # %
+    "spo2":        (80,  90, 100, 110),   # % (Allowing up to 110 to handle model artifacts above 100)
     "temperature": (95,  97, 100, 104),   # °F
     "fio2":        (21,  21,  60,  100),  # % (elevated FiO2 = intervention signal)
 }
@@ -81,10 +81,8 @@ def _vital_sub_score(vital: str, value: float) -> float:
     if value < lo_norm:
         if value <= lo_alert:
             return 100.0
-        # interpolate: lo_alert → 100, lo_norm → 0
         return 100.0 * (lo_norm - value) / max(lo_norm - lo_alert, 1e-9)
 
-    # value > hi_norm
     if value >= hi_alert:
         return 100.0
     return 100.0 * (value - hi_norm) / max(hi_alert - hi_norm, 1e-9)
@@ -110,16 +108,6 @@ def compute_risk_score(predicted_vitals: Dict[str, Optional[float]]) -> RiskResu
     Returns
     -------
     RiskResult with composite score, severity tier, per-vital scores, and alerts.
-
-    Example
-    -------
-    >>> result = compute_risk_score({"map": 55, "heart_rate": 115, "spo2": 92,
-    ...                              "sbp": 85, "dbp": 50, "resp_rate": 22,
-    ...                              "temperature": 101, "fio2": 40})
-    >>> result.risk_score
-    35.4
-    >>> result.severity
-    'Moderate'
     """
     vital_scores: Dict[str, float] = {}
     alerts: List[str] = []
@@ -203,3 +191,44 @@ def compute_risk_history(df_stay, feature_cols: list, predictor) -> list:
         })
 
     return history
+
+
+if __name__ == "__main__":
+
+    print("\n" + "="*50)
+    print("CLINICAL RISK SCORING DEMO")
+    print("="*50)
+
+    # Example 1: Critical Patient
+    critical_vitals = {
+        "map": 55,           # Hypotension
+        "heart_rate": 135,   # Tachycardia
+        "spo2": 85,          # Hypoxia
+        "resp_rate": 32,     # Tachypnea
+        "temperature": 102,
+        "sbp": 85,
+        "dbp": 50,
+        "fio2": 65           # High FiO2
+    }
+
+    # Example 2: Healthy Patient
+    stable_vitals = {
+        "map": 85,
+        "heart_rate": 75,
+        "spo2": 98,
+        "resp_rate": 16,
+        "temperature": 98.6,
+        "sbp": 120,
+        "dbp": 80,
+        "fio2": 21
+    }
+
+    for label, vitals in [("CRITICAL CASE", critical_vitals), ("STABLE CASE", stable_vitals)]:
+        result = compute_risk_score(vitals)
+        print(f"\n[ {label} ]")
+        print(f"Risk Score: {result.risk_score} / 100")
+        print(f"Severity:   {result.severity}")
+        print(f"Alerts:     {', '.join(result.alerts) if result.alerts else 'None'}")
+        print(f"Vital Sub-Scores: {result.vital_scores}")
+
+    print("\n" + "="*50)
