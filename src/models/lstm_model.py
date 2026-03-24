@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ─── Constants ────────────────────────────────────────────────────────────────
+
 VITAL_COLS = [
     "heart_rate", "sbp", "dbp", "map",
     "resp_rate", "spo2", "temperature", "fio2",
@@ -50,15 +50,12 @@ FEATURE_COLS = VITAL_COLS + INTERVENTION_COLS + ROLLING_COLS
 TARGET_COLS  = [f"{v}_target" for v in VITAL_COLS]
 
 LOOKBACK   = 12   # hours of history per sequence
-BATCH_SIZE = 256
-EPOCHS     = 40
+BATCH_SIZE = 1024
+EPOCHS     = 50
 LR         = 1e-3
 DEVICE     = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
-# Cap the number of stays used for training.
-# Set to None to use the full dataset (needs ~24 GB RAM).
-# 5_000 stays ≈ 1–2 GB RAM and trains in a few minutes.
-MAX_STAYS  = 5_000
+# Sequence forecasting settings
 
 # Clinical weights for loss (higher = more important vital)
 VITAL_WEIGHTS = {
@@ -73,28 +70,22 @@ VITAL_WEIGHTS = {
 }
 
 
-# ─── Dataset ──────────────────────────────────────────────────────────────────
 class LazyVitalDataset(Dataset):
     """
-    Memory-efficient lazy Dataset.
-
     Stores one (features, targets) array per stay in RAM.
-    Windows are built on-the-fly in __getitem__ — no pre-allocation of a
-    giant sequences array, so memory usage stays proportional to the number
-    of stays × hours × features rather than stays × windows × lookback × features.
+    Windows are built on-the-fly no pre-allocation of a
+    giant sequences array, so memory usage efficient
 
-    Parameters
-    ----------
+    Parameters:
     stays       : list of (feat_array, target_array) tuples, each sorted by hour.
     lookback    : number of past hours per sequence window.
     index_map   : pre-computed list of (stay_idx, end_row) tuples for __getitem__.
     scaler      : fitted StandardScaler applied inline (optional, avoids a
                   separate transform pass over the full dataset).
     """
-    def __init__(self, stays: list, lookback: int, scaler=None):
-        self.stays   = stays
+    def __init__(self, stays: list, lookback: int):
+        self.stays    = stays
         self.lookback = lookback
-        self.scaler  = scaler
         # Build flat index: (stay_idx, end_row_in_stay)
         self.index: list[tuple[int, int]] = []
         for s_idx, (feat, tgt) in enumerate(stays):
@@ -109,19 +100,14 @@ class LazyVitalDataset(Dataset):
     def __getitem__(self, idx):
         s_idx, end = self.index[idx]
         feat, tgt  = self.stays[s_idx]
-        window = feat[end - self.lookback: end].copy()   # (lookback, n_feat)
-        target = tgt[end - 1].copy()                     # (n_targets,)
-        if self.scaler is not None:
-            n_feat = window.shape[-1]
-            window = self.scaler.transform(window.reshape(-1, n_feat)).reshape(window.shape)
+        window = feat[end - self.lookback: end]          # (lookback, n_feat)
+        target = tgt[end - 1]                            # (n_targets,)
         return torch.tensor(window, dtype=torch.float32), torch.tensor(target, dtype=torch.float32)
 
 
-# ─── Model ────────────────────────────────────────────────────────────────────
 class VitalLSTM(nn.Module):
     """
-    Bidirectional 2-layer LSTM encoder with one regression head per vital.
-
+    Bidirectional 2-layer LSTM encoder with one regression head per vital
     Architecture
     ────────────
     Input  : (batch, lookback, n_features)
@@ -159,17 +145,13 @@ class VitalLSTM(nn.Module):
         return torch.cat(preds, dim=1)      # (batch, n_targets)
 
 
-# ─── Training helpers ─────────────────────────────────────────────────────────
+# Training helpers
 def weighted_mae_loss(pred: torch.Tensor, target: torch.Tensor,
                       weights: torch.Tensor) -> torch.Tensor:
-    """MAE loss with per-vital clinical weights; ignores NaN targets."""
     mask   = ~torch.isnan(target)
     errors = torch.abs(pred - target)
-    # zero out NaN positions
     errors = torch.where(mask, errors, torch.zeros_like(errors))
-    # weight per vital
     weighted = errors * weights.to(errors.device)
-    # mean over valid entries only
     denom = mask.float().sum().clamp(min=1)
     return weighted.sum() / denom
 
@@ -190,7 +172,6 @@ def evaluate(model: VitalLSTM, loader: DataLoader,
 
 def compute_metrics(model: VitalLSTM, loader: DataLoader,
                     device: str, target_names: list) -> list:
-    """Compute per-vital MAE, RMSE, R² on a data split."""
     model.eval()
     all_pred, all_true = [], []
     with torch.no_grad():
@@ -220,7 +201,6 @@ def compute_metrics(model: VitalLSTM, loader: DataLoader,
     return metrics
 
 
-# ─── Main training pipeline ───────────────────────────────────────────────────
 def main():
     start = time.time()
     logger.info(f"Device: {DEVICE}")
@@ -236,7 +216,6 @@ def main():
     df = pd.read_parquet(features_path)
     logger.info(f"Loaded: {df.shape[0]:,} rows, {df['stay_id'].nunique():,} stays")
 
-    # ensure feature cols present
     feature_cols = [c for c in FEATURE_COLS if c in df.columns]
     target_cols  = [c for c in TARGET_COLS  if c in df.columns]
     for col in feature_cols:
@@ -248,12 +227,9 @@ def main():
     logger.info(f"Features: {n_features}  |  Targets: {n_targets}")
 
     # 2. Stay-level train / val / test split BEFORE building any arrays
-    #    (GroupShuffleSplit on stay_ids — no data leakage)
+    #    (GroupShuffleSplit on stay_ids to ensure there is no data leakage)
     all_stays = df["stay_id"].unique()
     rng       = np.random.default_rng(42)
-    if MAX_STAYS is not None and len(all_stays) > MAX_STAYS:
-        all_stays = rng.choice(all_stays, size=MAX_STAYS, replace=False)
-        logger.info(f"Subsampled to {MAX_STAYS:,} stays (set MAX_STAYS=None for full data)")
 
     rng.shuffle(all_stays)
     n_total = len(all_stays)
@@ -266,7 +242,7 @@ def main():
         f"Stays — Train: {len(train_stays):,}  Val: {len(val_stays):,}  Test: {len(test_stays):,}"
     )
 
-    # 3. Build per-stay arrays (cheap — just one array per stay, not one per window)
+    # 3. Build per-stay arrays
     def make_stay_list(stay_ids: set):
         out = []
         for sid, grp in df[df["stay_id"].isin(stay_ids)].groupby("stay_id"):
@@ -282,25 +258,45 @@ def main():
     val_list   = make_stay_list(val_stays)
     test_list  = make_stay_list(test_stays)
 
-    # 4. Fit scaler on a FLAT sample of training rows (not windows — still cheap)
+    # 4. Fit scaler on a FLAT sample of training rows
     train_feat_sample = np.vstack([f for f, _ in train_list])
     scaler = StandardScaler()
     scaler.fit(train_feat_sample)
-    del train_feat_sample   # free immediately
+    del train_feat_sample  
 
-    # 5. Lazy Datasets + DataLoaders (scaler applied per-window inside __getitem__)
-    train_ds = LazyVitalDataset(train_list, LOOKBACK, scaler=scaler)
-    val_ds   = LazyVitalDataset(val_list,   LOOKBACK, scaler=scaler)
-    test_ds  = LazyVitalDataset(test_list,  LOOKBACK, scaler=scaler)
+    # 5. Pre-scale stay arrays
+    logger.info("Scaling data …")
+    def scale_stays(stay_list, sc):
+        out = []
+        for f, t in stay_list:
+            f_scaled = sc.transform(f)
+            out.append((f_scaled.astype(np.float32), t))
+        return out
+
+    train_list = scale_stays(train_list, scaler)
+    val_list   = scale_stays(val_list,   scaler)
+    test_list  = scale_stays(test_list,  scaler)
+
+    train_ds = LazyVitalDataset(train_list, LOOKBACK)
+    val_ds   = LazyVitalDataset(val_list,   LOOKBACK)
+    test_ds  = LazyVitalDataset(test_list,  LOOKBACK)
     logger.info(
         f"Sequences — Train: {len(train_ds):,}  Val: {len(val_ds):,}  Test: {len(test_ds):,}"
     )
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=0)
-    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
-    test_loader  = DataLoader(test_ds,  batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    train_loader = DataLoader(
+        train_ds, batch_size=BATCH_SIZE, shuffle=True,
+        num_workers=4, pin_memory=True, prefetch_factor=2
+    )
+    val_loader   = DataLoader(
+        val_ds,   batch_size=BATCH_SIZE, shuffle=False,
+        num_workers=2, pin_memory=True
+    )
+    test_loader  = DataLoader(
+        test_ds,  batch_size=BATCH_SIZE, shuffle=False,
+        num_workers=2, pin_memory=True
+    )
 
-    # 6. Build model + loss weights
     model  = VitalLSTM(n_features=n_features, n_targets=n_targets).to(DEVICE)
     w_vec  = torch.tensor(
         [VITAL_WEIGHTS.get(v, 1.0) for v in vital_names], dtype=torch.float32
@@ -308,7 +304,7 @@ def main():
     optim  = Adam(model.parameters(), lr=LR, weight_decay=1e-5)
     sched  = CosineAnnealingLR(optim, T_max=EPOCHS, eta_min=1e-5)
 
-    # 7. Training loop
+    # 6. Training loop
     best_val_loss = float("inf")
     best_weights  = None
 
