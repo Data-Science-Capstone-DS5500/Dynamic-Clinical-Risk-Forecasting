@@ -48,9 +48,9 @@ VITAL_NORMAL_RANGES = {
 }
 
 SEVERITY_COLORS = {
-    "Low":      "#22c55e",   # green
-    "Moderate": "#f59e0b",   # amber
-    "High":     "#ef4444",   # red
+    "Low":      "#22c55e",   
+    "Moderate": "#f59e0b",   
+    "High":     "#ef4444",   
 }
 
 VITAL_COLORS = {
@@ -65,19 +65,19 @@ VITAL_COLORS = {
 }
 
 
-# ─── Cached loaders ────────────────────────────────────────────────────────────
+# Cached loaders
 
 @st.cache_resource(show_spinner="Loading predictor …")
 def load_predictor(model_type: str, data_processed_dir: str):
-    """Load and cache a ClinicalPredictor (cached per model_type)."""
-    import sys
-    sys.path.insert(0, str(Path(data_processed_dir).parent.parent.parent))
-    from src.inference.predictor import ClinicalPredictor
 
-    p = ClinicalPredictor(
-        model_type=model_type,
-        features_path=Path(data_processed_dir) / "features.parquet",
-    )
+    import importlib
+    import src.models.risk_scoring
+    import src.inference.predictor
+    importlib.reload(src.models.risk_scoring)
+    importlib.reload(src.inference.predictor)
+    from src.inference.predictor import ClinicalPredictor
+    
+    p = ClinicalPredictor(model_type=model_type)
     p.load_features()
     return p
 
@@ -100,11 +100,11 @@ def load_lstm_metrics(metrics_path: str) -> Optional[dict]:
         return json.load(f)
 
 
-# ─── Data helpers ──────────────────────────────────────────────────────────────
+# Data helpers
 
 def get_stay_vitals(predictor, stay_id: int, last_n_hours: Optional[int] = None
                     ) -> pd.DataFrame:
-    """Return vital sign columns from stay history, optionally truncated."""
+    
     df = predictor.get_stay_history(stay_id)
     if last_n_hours is not None:
         df = df.tail(last_n_hours)
@@ -112,24 +112,31 @@ def get_stay_vitals(predictor, stay_id: int, last_n_hours: Optional[int] = None
 
 
 def get_vitals_at_hour(df_stay: pd.DataFrame, as_of_hour: int) -> pd.DataFrame:
-    """Return rows up to and including as_of_hour."""
+    
     return df_stay[df_stay["hour_idx"] <= as_of_hour]
 
 
-def build_risk_history(predictor, stay_id: int, step: int = 1) -> list:
-    """
-    Compute risk score snapshot at each hour for the full stay.
-    Returns list of dicts: {hour_idx, timestamp, risk_score, severity, alerts}
-    """
-    from src.models.risk_scoring import compute_risk_history
+def build_risk_history(predictor, stay_id: int, step: int = 2) -> list:
+    
     df_stay = predictor.get_stay_history(stay_id)
-    return compute_risk_history(df_stay, predictor._xgb_bundle["feature_cols"]
-                                if predictor.model_type == "xgboost"
-                                else predictor._lstm_meta["feature_cols"],
-                                predictor)
+    max_h = int(df_stay["hour_idx"].max())
+    history = []
+    
+    for h in range(1, max_h + 1, step):
+        try:
+            res = predictor.predict(stay_id, h)
+            row = df_stay[df_stay["hour_idx"] == h]
+            history.append({
+                "hour_idx": h,
+                "timestamp": row["timestamp"].iloc[0] if not row.empty else None,
+                "risk_score": res["risk_score"],
+                "severity": res["severity"],
+            })
+        except: continue
+    return history
 
 
-# ─── Formatting helpers ─────────────────────────────────────────────────────────
+# Formatting helpers
 
 def format_value(vital: str, value: Optional[float]) -> str:
     if value is None or np.isnan(value):
@@ -167,7 +174,7 @@ def metrics_to_dataframe(xgb_metrics: list, split: str = "Test") -> pd.DataFrame
 
 
 def get_stay_info(predictor, stay_id: int) -> dict:
-    """Extract basic metadata for a stay."""
+    
     df = predictor.get_stay_history(stay_id)
     row = df.iloc[0]
     los_hours = len(df)
@@ -180,3 +187,4 @@ def get_stay_info(predictor, stay_id: int) -> dict:
         "los_hours":  los_hours,
         "max_hour":   int(df["hour_idx"].max()),
     }
+

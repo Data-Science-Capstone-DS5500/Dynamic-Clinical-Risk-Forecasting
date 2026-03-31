@@ -2,17 +2,14 @@
 Clinical Risk Scoring Module
 Converts 8 predicted vital sign values into a composite 0-100 risk index
 with severity tiers (Low / Moderate / High) and per-vital alert flags.
-No additional training required — uses clinical threshold rules.
 """
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import numpy as np
 
-# ─── Clinical reference ranges ─────────────────────────────────────────────
-# Each entry: (lower_alert, lower_normal, upper_normal, upper_alert)
-# Values outside alert thresholds → max contribution to risk score.
-# Values outside normal but inside alert → partial contribution.
+# Clinical reference ranges
+
 CLINICAL_THRESHOLDS = {
     "map":         (50,  65, 100, 130),   # mmHg
     "heart_rate":  (40,  60, 100, 130),   # bpm
@@ -53,7 +50,7 @@ ALERT_MESSAGES = {
 
 @dataclass
 class RiskResult:
-    """Container for a single risk scoring evaluation."""
+    
     risk_score: float               # 0–100 composite score
     severity: str                   # "Low" | "Moderate" | "High"
     vital_scores: Dict[str, float]  # per-vital sub-scores (0–100)
@@ -62,14 +59,7 @@ class RiskResult:
 
 
 def _vital_sub_score(vital: str, value: float) -> float:
-    """
-    Compute a 0–100 score for a single vital sign.
-
-    Score = 0   if value is within the normal range.
-    Score = 50  if value is at the boundary of the alert threshold.
-    Score = 100 if value is at or beyond the extreme alert threshold.
-    Linear interpolation in between.
-    """
+    
     if vital not in CLINICAL_THRESHOLDS:
         return 0.0
 
@@ -97,18 +87,7 @@ def _severity_label(score: float) -> str:
 
 
 def compute_risk_score(predicted_vitals: Dict[str, Optional[float]]) -> RiskResult:
-    """
-    Compute composite clinical risk score from a dict of predicted vital values.
-
-    Parameters
-    ----------
-    predicted_vitals : dict
-        Keys are vital names (e.g. 'map', 'heart_rate'), values are floats (or None).
-
-    Returns
-    -------
-    RiskResult with composite score, severity tier, per-vital scores, and alerts.
-    """
+    
     vital_scores: Dict[str, float] = {}
     alerts: List[str] = []
     total_weight, weighted_sum = 0.0, 0.0
@@ -159,19 +138,7 @@ def compute_risk_score(predicted_vitals: Dict[str, Optional[float]]) -> RiskResu
 
 
 def compute_risk_history(df_stay, feature_cols: list, predictor) -> list:
-    """
-    Compute risk score at every hour of a single ICU stay.
-
-    Parameters
-    ----------
-    df_stay    : DataFrame for one stay, already sorted by hour_idx.
-    feature_cols : feature column names used by the predictor.
-    predictor  : a ClinicalPredictor instance.
-
-    Returns
-    -------
-    List of dicts with keys: hour_idx, timestamp, risk_score, severity, alerts.
-    """
+    
     history = []
     stay_id = df_stay["stay_id"].iloc[0]
 
