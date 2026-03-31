@@ -93,9 +93,17 @@ python src/preprocessing/pipeline.py
 ```bash
 python src/models/baseline_xgboost.py
 python src/models/lstm_model.py
+python src/models/gru_model.py
+python src/models/Random_Forest_model.py
 ```
-
-### Step 4: Launch Dashboard
+### Step 4: Hyperparameter Tuning
+```bash
+python src/models/hyperparameter tuning/lstm_tuning.py
+python src/models/hyperparameter tuning/tune_gru.py
+python src/models/hyperparameter tuning/tune_xgb.py
+python src/models/hyperparameter tuning/tune_rf.py
+```
+### Step 5: Launch Dashboard
 Start the interactive Streamlit application using the project virtual environment:
 ```bash
 ./.venv/bin/python3 -m streamlit run src/dashboard/app.py
