@@ -33,17 +33,19 @@ The project includes a comprehensive interactive dashboard for real-time patient
 
 ### 1. Patient Overview
 Provides a high-level summary of the patient's current state, temporal trends, and a snapshot grid.
-<img width="3024" height="1416" alt="image" src="https://github.com/user-attachments/assets/ac5bda58-27b6-459f-a692-d61ef6285c62" />
+<img width="3024" height="1466" alt="image" src="https://github.com/user-attachments/assets/b10b91b1-38fd-4f84-8413-2a480d26bc81" />
 
 
-### 2. 6-Hour Forecast
-Displays predicted vital signs 6 hours into the future, complete with confidence bands and a clinical risk gauge.
-<img width="3012" height="1506" alt="image" src="https://github.com/user-attachments/assets/c1c141f1-c1a8-4d81-9f3a-4bb12173aea2" />
+
+### 2. 6-Hour Forecast and Risk History
+Displays predicted vital signs 6 hours into the future, complete with confidence bands and a clinical risk gauge and hows the evolution of the clinical risk score and provides feature importance for interpretability.
+<img width="3024" height="1488" alt="image" src="https://github.com/user-attachments/assets/d3b8503d-d619-49ea-9052-4eecbf5a7971" />
+<img width="3024" height="1126" alt="image" src="https://github.com/user-attachments/assets/85bffbeb-cf47-40c8-9c0f-d7106d6c040a" />
 
 
-### 3. Risk History & Interpretation
-Shows the evolution of the clinical risk score and provides feature importance for interpretability.
-<img width="3024" height="1508" alt="image" src="https://github.com/user-attachments/assets/8936b13c-34fe-4925-91c6-12e889ba6b4c" />
+### 3. Clinical Intervention Simulation
+Simulates the evolution of the clinical risk when different vitals and interventions are being altered.
+<img width="3024" height="1470" alt="image" src="https://github.com/user-attachments/assets/e5aaf69a-1594-44eb-96ee-005203be5610" />
 
 
 ## Setup & Installation
