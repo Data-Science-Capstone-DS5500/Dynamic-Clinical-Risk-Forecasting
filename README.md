@@ -14,17 +14,18 @@ This project provides a robust, production-ready framework for:
 
 ```text
 ├── data/
-│   ├── raw/                # Raw parquet extracts from BigQuery
-│   └── processed/          # Modular feature matrices and model artifacts
+│   ├── hosp/               # Raw MIMIC-IV hospital tables
+│   ├── icu/                # Raw MIMIC-IV ICU tables
+│   ├── raw/                # Additional raw extracts
+│   └── processed/          # Feature matrices, model artifacts, feature importance
 ├── src/
-│   ├── config.py           # Centralized project configuration and paths
-│   ├── data_extraction/    # Scripts for BigQuery data retrieval
-│   ├── preprocessing/      # Modular preprocessing pipeline components
-│   ├── models/             # Training and evaluation logic (XGBoost & LSTM)
-│   ├── inference/          # Unified inference interface (Predictor)
-│   └── dashboard/          # Streamlit application and visualizations
-├── requirements.txt        # Core project dependencies
-└── README.md               # Project documentation
+│   ├── data_extraction/    # BigQuery data retrieval
+│   ├── preprocessing/      # Ingestion, alignment, imputation, feature generation
+│   ├── models/             # XGBoost, LSTM, GRU, RF training + hyperparameter tuning
+│   ├── inference/          # Unified inference interface
+│   └── dashboard/          # Streamlit app and Plotly visualizations
+├── tests/                  # pytest test suite
+└── requirements.txt
 ```
 
 ## Dashboard
@@ -94,7 +95,7 @@ python src/preprocessing/pipeline.py
 python src/models/baseline_xgboost.py
 python src/models/lstm_model.py
 python src/models/gru_model.py
-python src/models/Random_Forest_model.py
+python src/models/random_forest_model.py
 ```
 ### Step 4: Hyperparameter Tuning
 ```bash
